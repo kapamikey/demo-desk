@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# secrets — never commit
+.env
+.env.local
+.env.*.local
+*.pem
+
+# build / deploy
+dist/
+.vercel
+*.tsbuildinfo
+
+# logs / OS
+*.log
+.DS_Store
+
+# local prove screenshots (keep out of repo)
+*.png
+prove-*
