@@ -79,10 +79,42 @@ function evidenceFromBody(body: Record<string, unknown>): EvidenceExpansion {
   }
 }
 
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isUuid(s: string): boolean {
+  return UUID_RE.test(s)
+}
+
+/** YYYY-MM-DD that is a real calendar date. */
+function isCalendarDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const d = new Date(`${s}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+}
+
+function dateParam(query: Record<string, unknown>, key: 'from' | 'to'): string | undefined {
+  const v = query[key]
+  if (typeof v !== 'string' || !v.trim()) return undefined
+  const s = v.trim()
+  if (!isCalendarDate(s)) throw new HttpError(400, `Invalid ${key} date (use YYYY-MM-DD)`)
+  return s
+}
+
 function filterFromQuery(query: Record<string, unknown>): DemoListFilter {
   const filter: DemoListFilter = {}
-  if (typeof query.from === 'string' && query.from.trim()) filter.from = query.from.trim()
-  if (typeof query.to === 'string' && query.to.trim()) filter.to = query.to.trim()
+  const from = dateParam(query, 'from')
+  if (from) filter.from = from
+  const to = dateParam(query, 'to')
+  if (to) filter.to = to
   if (typeof query.category === 'string' && query.category.trim()) {
     const cat = query.category.trim().toLowerCase()
     if ((DEMO_CATEGORIES as readonly string[]).includes(cat)) {
@@ -133,14 +165,25 @@ function demoInputFromBody(body: Record<string, unknown>) {
   }
 }
 
-function errMsg(e: unknown): string {
-  if (e && typeof e === 'object' && 'message' in e) return String((e as Error).message)
-  return String(e)
-}
-
 function statusOf(e: unknown): number {
   if (e && typeof e === 'object' && 'status' in e) return Number((e as { status: number }).status)
   return 500
+}
+
+/** Only HttpError messages reach the client; anything else is logged and answered generically. */
+function sendError(res: express.Response, e: unknown, format: 'text' | 'json' = 'text'): void {
+  let status: number
+  let message: string
+  if (e instanceof HttpError) {
+    status = e.status
+    message = e.message
+  } else {
+    console.error(e)
+    status = statusOf(e)
+    message = 'Something went wrong'
+  }
+  if (format === 'json') res.status(status).json({ error: message })
+  else res.status(status).type('text').send(message)
 }
 
 // --- public ---
@@ -151,13 +194,13 @@ app.get('/', async (req, res) => {
     const demos = await demoRepo.listPublic(filter)
     res.type('html').send(renderFeed(demos, filter))
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
 app.get('/demos/:id', async (req, res) => {
   try {
-    const demo = await demoRepo.get(req.params.id as DemoId)
+    const demo = isUuid(req.params.id) ? await demoRepo.get(req.params.id as DemoId) : null
     if (!demo) {
       res.status(404).type('html').send(renderNotFound())
       return
@@ -174,7 +217,7 @@ app.get('/demos/:id', async (req, res) => {
     }
     res.type('html').send(renderDemoDetail(demo, { saved, operator: isOperator(req) }))
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -184,7 +227,7 @@ app.get('/api/demos', async (req, res) => {
     const demos = await demoRepo.listPublic(filter)
     res.json(demos)
   } catch (e) {
-    res.status(statusOf(e)).json({ error: errMsg(e) })
+    sendError(res, e, 'json')
   }
 })
 
@@ -226,7 +269,7 @@ app.get('/admin', requireOperator, async (_req, res) => {
     const [demos, rules] = await Promise.all([demoRepo.listPublic(), searchRuleRepo.list()])
     res.type('html').send(renderAdmin(demos, rules))
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -236,20 +279,20 @@ app.post('/admin/demos', requireOperator, async (req, res) => {
     await demoRepo.create(demoInputFromBody(req.body))
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
 app.get('/admin/demos/:id/edit', requireOperator, async (req, res) => {
   try {
-    const demo = await demoRepo.get(req.params.id as DemoId)
+    const demo = isUuid(req.params.id) ? await demoRepo.get(req.params.id as DemoId) : null
     if (!demo) {
       res.status(404).type('html').send(renderNotFound())
       return
     }
     res.type('html').send(renderEditDemo(demo))
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -259,7 +302,7 @@ app.post('/admin/demos/:id', requireOperator, async (req, res) => {
     await demoRepo.update(req.params.id as DemoId, demoInputFromBody(req.body))
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -269,7 +312,7 @@ app.post('/admin/demos/:id/delete', requireOperator, async (req, res) => {
     await demoRepo.remove(req.params.id as DemoId)
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -283,7 +326,28 @@ app.post('/admin/rules', requireOperator, async (req, res) => {
     })
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
+  }
+})
+
+app.post('/admin/rules/:id', requireOperator, async (req, res) => {
+  try {
+    requireServiceRole()
+    if (!isUuid(req.params.id)) throw new HttpError(404, 'Rule not found')
+    const name = String(req.body.name ?? '').trim()
+    const query = String(req.body.query ?? '').trim()
+    if (!name || !query) throw new HttpError(400, 'Name and query are required')
+    const enabled = req.body.enabled === 'true' || req.body.enabled === true
+    try {
+      await searchRuleRepo.update(req.params.id as SearchRuleId, { name, query, enabled })
+    } catch (e) {
+      // .single() on zero matched rows
+      if ((e as { code?: string })?.code === 'PGRST116') throw new HttpError(404, 'Rule not found')
+      throw e
+    }
+    res.redirect('/admin')
+  } catch (e) {
+    sendError(res, e)
   }
 })
 
@@ -294,7 +358,7 @@ app.post('/admin/rules/:id/toggle', requireOperator, async (req, res) => {
     await searchRuleRepo.update(req.params.id as SearchRuleId, { enabled })
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -304,7 +368,7 @@ app.post('/admin/rules/:id/delete', requireOperator, async (req, res) => {
     await searchRuleRepo.remove(req.params.id as SearchRuleId)
     res.redirect('/admin')
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -324,7 +388,7 @@ app.get('/saves', requireOperator, async (req, res) => {
     const demosById = new Map(demos.map((d) => [d.id as string, d]))
     res.type('html').send(renderSaves(items, demosById, { tag, noteContains }))
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -340,7 +404,7 @@ app.post('/saves', requireOperator, async (req, res) => {
     await savedItemRepo.save({ demoId, tags, note })
     res.redirect(`/demos/${demoId}`)
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 
@@ -351,7 +415,7 @@ app.post('/saves/:id/delete', requireOperator, async (req, res) => {
     const back = req.get('referer') || '/saves'
     res.redirect(back)
   } catch (e) {
-    res.status(statusOf(e)).type('html').send(`<pre>${errMsg(e)}</pre>`)
+    sendError(res, e)
   }
 })
 

@@ -89,6 +89,15 @@ export function renderAdmin(demos: Demo[], rules: SearchRule[], flash?: string):
     <form style="display:inline" method="post" action="/admin/rules/${escapeHtml(r.id)}/delete" onsubmit="return confirm('Delete rule?')">
       <button class="danger" type="submit">Delete</button>
     </form>
+    <details>
+      <summary>Edit</summary>
+      <form method="post" action="/admin/rules/${escapeHtml(r.id)}">
+        <label>Name<input name="name" required value="${escapeHtml(r.name)}" /></label>
+        <label>Query<input name="query" required value="${escapeHtml(r.query)}" /></label>
+        <label><input type="checkbox" name="enabled" value="true"${r.enabled ? ' checked' : ''} /> Enabled</label>
+        <button type="submit">Save</button>
+      </form>
+    </details>
   </td>
 </tr>`,
     )
