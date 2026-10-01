@@ -5,7 +5,7 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "fixtures/**"
+        "includeFiles": "{fixtures/**,src/invoice/pdf.worker.mjs,api/pdf.worker.mjs,node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs}"
       }
     }
   ],

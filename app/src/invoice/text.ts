@@ -1,7 +1,37 @@
 type TextItem = { str: string; transform: number[] }
 
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+function workerHref(): string {
+  const urls = [
+    new URL('./pdf.worker.mjs', import.meta.url),
+    new URL('../api/pdf.worker.mjs', import.meta.url),
+    new URL('../../api/pdf.worker.mjs', import.meta.url),
+    new URL('../src/invoice/pdf.worker.mjs', import.meta.url),
+    new URL('../../src/invoice/pdf.worker.mjs', import.meta.url),
+  ]
+  for (const url of urls) {
+    if (existsSync(fileURLToPath(url))) return url.href
+  }
+  for (const path of [
+    '/var/task/app/api/pdf.worker.mjs',
+    '/var/task/api/pdf.worker.mjs',
+    '/var/task/app/src/invoice/pdf.worker.mjs',
+    '/var/task/src/invoice/pdf.worker.mjs',
+    '/var/task/app/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+    '/var/task/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+  ]) {
+    if (existsSync(path)) return new URL('file://' + path).href
+  }
+  return urls[0].href
+}
+
+const workerSrc = workerHref()
+
 export async function pdfToLines(data: Uint8Array): Promise<string[]> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
   const doc = await pdfjs.getDocument({
     data,
     isEvalSupported: false,
