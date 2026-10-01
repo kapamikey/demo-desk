@@ -64,10 +64,7 @@ function sendSheet(req: express.Request, res: express.Response, sheet: Awaited<R
 function sendFail(req: express.Request, res: express.Response, e: unknown) {
   const status = e instanceof InvoiceParseError ? 400 : 500
   let message = e instanceof InvoiceParseError ? e.message : 'Something went wrong'
-  if (!(e instanceof InvoiceParseError)) {
-    console.error(e)
-    if (req.query.debug === '1' && e instanceof Error) message = e.message
-  }
+  if (!(e instanceof InvoiceParseError)) console.error(e)
   if (wantsJson(req)) res.status(status).json({ error: message })
   else res.status(status).type('html').send(renderPanel(null, message))
 }
