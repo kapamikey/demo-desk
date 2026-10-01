@@ -1,18 +1,9 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "{fixtures/**,src/invoice/pdf.worker.mjs,api/pdf.worker.mjs,node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs}"
-      }
-    }
+    { "src": "api/index.ts", "use": "@vercel/node" }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.ts"
-    }
+    { "src": "/(.*)", "dest": "api/index.ts" }
   ]
 }

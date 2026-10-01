@@ -1,60 +1,54 @@
-# demo desk — invoice panel (current)
+# demo desk — stock price (current)
 
-replaces the wave 1 feed. stack stays the app at `/workspace/demo-desk/app`, deployed to https://demo-desk.vercel.app. no new supabase table. wave 1 tables stay in `pjbdiycmchuiatcpvbws` and are not served.
+replaces the invoice panel. app stays `/workspace/demo-desk/app`, live at https://demo-desk.vercel.app.
 
-source: brief lock 2026-09-30. types: `blueprint/invoice.ts`.
+source: brief lock 2026-10-01. types: `blueprint/quote.ts`. sql: `blueprint/migrations/004_quote_log.sql`.
 
 ## fields
 
-one sheet. each row is four strings, as printed on the invoice (no float compare):
+one quote:
 
-- `date`
-- `supplier`
-- `amount`
-- `tax`
+- `ticker` — uppercase symbol
+- `price` — `regularMarketPrice` from yahoo chart v8, as a decimal string
+- `quotedAt` — that result's `regularMarketTime`, as ISO
+- `use` — count of `quote_log` rows after this successful quote
 
-csv header is exactly `date,supplier,amount,tax`. body is the same rows in the same order.
-
-the sample is two files forge writes from one invoice: `app/fixtures/sample-invoice.pdf` and `app/fixtures/sample-invoice.expected.json` (`InvoiceSheet`). the sheet must equal that json. blueprint does not invent the numbers.
+a missing yahoo result is not a quote. no row, use unchanged.
 
 ## modules
 
 | module | owns | does not own |
 | --- | --- | --- |
-| `invoice/sample` | the fixture pdf + expected json | parsing rules for other pdfs |
-| `invoice/sheet` | turn the sample, or one uploaded invoice pdf, into `InvoiceSheet` | accounts, history, tax math |
-| `invoice/csv` | download of the current sheet, same rows | a second store |
-| `ui/panel` | the only page. sample action, upload, the sheet, the csv link. visible copy includes the exact phrase `pdf to excel` | the demo feed |
+| `quote/source` | one GET to yahoo chart v8 for the ticker | a second vendor, history, change, volume |
+| `quote/log` | insert one `quote_log` row on success, return the count | accounts, failed lookups |
+| `ui/panel` | the only page. a ticker in, the quote out. visible copy includes the exact phrase `stock price` | invoices, the demo feed |
 
 ## dependency direction
 
 ```
-ui/panel → invoice/sheet | invoice/csv | invoice/sample
+ui/panel → quote/source → quote/log → db → supabase pjbdiycmchuiatcpvbws
 ```
 
-no db. no auth. ui never talks sql.
+no auth. ui never talks sql.
 
 ## acceptance → module
 
-1. panel replaces the demo feed at `/` → `ui/panel` (feed routes gone)
-2. sample produces date, supplier, amount, tax matching the fixture → `invoice/sample` + `invoice/sheet`
-3. csv contains the same rows → `invoice/csv`
-4. a second invoice pdf returns rows with no re-setup → `invoice/sheet` on upload, no account
-5. the description uses `pdf to excel` → copy in `ui/panel`
+1. the description uses `stock price` → copy in `ui/panel`
+2. asking what a ticker is worth returns its latest price → `quote/source`
+3. a second ticker returns its own price, no account, no re-setup → a new call, no saved ticker
+4. one successful quote counts as one use → one `quote_log` row, `use` on the response
 
 ## out
 
-stripe · in-chat checkout · accounts · any pdf that is not an invoice · chatgpt directory submission (needs michael's account; the phrase lives on the page) · dropping wave 1 supabase tables · scout ingest
+stripe · accounts · the invoice panel · chatgpt directory submission (needs michael's account; the phrase lives on the page) · any field besides ticker, price, quotedAt, use · dropping wave 1 tables
 
 ## forge fill order
 
-1. fixture pdf + expected json
-2. `ui/panel` at `/`, feed not served
-3. sample action fills the sheet
-4. csv download of that sheet
-5. second invoice upload replaces the sheet
-6. deploy to https://demo-desk.vercel.app
+1. apply `004_quote_log.sql` on `pjbdiycmchuiatcpvbws`
+2. `quote/source` + `quote/log`
+3. `ui/panel` at `/`, invoice panel not served
+4. deploy to https://demo-desk.vercel.app
 
 ## retired
 
-wave 1 demo feed, search rules, and saves are not in this mvp. contract for that lock remains in `blueprint/types.ts`, `blueprint/schema.sql`, and `blueprint/migrations/`. do not build it further.
+invoice panel (`blueprint/invoice.ts`) and the wave 1 demo feed. do not build either further. wave 1 tables stay.
