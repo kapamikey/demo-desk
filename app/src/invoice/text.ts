@@ -1,11 +1,21 @@
 type TextItem = { str: string; transform: number[] }
 
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const require = createRequire(import.meta.url)
+const standardFontDataUrl = pathToFileURL(
+  join(dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts') + '/',
+).href
+
 export async function pdfToLines(data: Uint8Array): Promise<string[]> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const doc = await pdfjs.getDocument({
     data,
     isEvalSupported: false,
     useSystemFonts: false,
+    standardFontDataUrl,
   }).promise
 
   const items: { x: number; y: number; str: string }[] = []
