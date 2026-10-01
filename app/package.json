@@ -11,11 +11,15 @@
   "dependencies": {
     "@supabase/supabase-js": "2.49.8",
     "@vercel/node": "^5.10.2",
+    "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.4",
     "@types/cookie-parser": "^1.4.8",
     "@types/express": "^4.17.21",
     "@types/node": "^22.13.10",

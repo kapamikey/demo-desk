@@ -1,4 +1,3 @@
-import app from '../src/app.js'
+import app from '../src/panel-app.js'
 
-// @vercel/node treats a default-exported Express app as the request handler.
 export default app
