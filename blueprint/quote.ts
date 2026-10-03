@@ -23,5 +23,7 @@ export const STOCK_PRICE_PHRASE = 'stock price' as const
  * price = chart.result[0].meta.regularMarketPrice
  * quotedAt = chart.result[0].meta.regularMarketTime (unix seconds → ISO)
  * A missing result is not a quote and does not count as a use.
+ * A ticker rejected before lookup (live: 400 "ticker is required") is also not a use.
+ * Do not add a separate "no quote" message unless Michael asks.
  */
 export const QUOTE_SOURCE = 'yahoo-chart-v8' as const
